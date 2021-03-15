@@ -1,7 +1,25 @@
 import cv2
 import pysift
 import numpy as np
-
+from numpy import float32
+def warpTwoImages(img2, img1, H):
+	'''warp img2 to img1 with homograph H'''
+	print("=={}==".format(H))
+	h1,w1 = img1.shape[:2]
+	h2,w2 = img2.shape[:2]
+	pts1 = float32([[0,0],[0,h1],[w1,h1],[w1,0]]).reshape(-1,1,2)
+	print(pts1)
+	pts2 = float32([[0,0],[0,h2],[w2,h2],[w2,0]]).reshape(-1,1,2)
+	pts2_ = cv2.perspectiveTransform(pts2, H)
+	print(pts2_)
+	pts = np.concatenate((pts1, pts2_), axis=0)
+	[xmin, ymin] = np.int32(pts.min(axis=0).ravel() - 0.5)
+	[xmax, ymax] = np.int32(pts.max(axis=0).ravel() + 0.5)
+	t = [-xmin,-ymin]
+	Ht = np.array([[1,0,t[0]],[0,1,t[1]],[0,0,1]]) # translate
+	result = cv2.warpPerspective(img2, Ht.dot(H), (xmax-xmin, ymax-ymin))
+	result[t[1]:h1+t[1],t[0]:w1+t[0]] = img1
+	return result
 
 def DoMerge(imgA, imgB, H):
 	#a_lu,a_ru,a_ld,a_rd;
@@ -29,7 +47,7 @@ def MergeImg(leftImg, rightImg):
 	left = cv2.imread(leftImg, 0)
 	right = cv2.imread(rightImg, 0)
 	
-	rate = 0.1
+	rate = 0.05
 
 	# resize src img
 	l, w = left.shape
@@ -102,10 +120,11 @@ def MergeImg(leftImg, rightImg):
 	ptsA = np.float32([left_kps[i].pt for (_, i) in matches])		
 	ptsB = np.float32([right_kps[i].pt for (i, _) in matches])		
 	H, statuc = cv2.findHomography(ptsA, ptsB, cv2.RANSAC, 4.0)
-	DoMerge(left, right, H)
+	result = warpTwoImages(left, right, H)
+	#DoMerge(left, right, H)
 	#result = cv2.warpPerspective(left, H, (left.shape[1] + right.shape[1], left.shape[0]))
 	#result[0:right.shape[0], right.shape[1]:right.shape[1]*2] = right
-	#cv2.imshow('result', result)
-	#cv2.waitKey(0)
+	cv2.imshow('result', result)
+	cv2.waitKey(0)
 if __name__ == "__main__":
 	MergeImg('left.jpg', 'right.jpg')
